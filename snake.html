@@ -1,0 +1,200 @@
+﻿
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Snake</title>
+</head>
+
+<body>
+  <canvas id="renderCanvas" width="1600" height="800"></canvas>
+  <script>
+    document.addEventListener("DOMContentLoaded", start);
+    var gl;
+    var direction = [1.0, 0.0];
+
+    function start() {
+      console.log("started");
+      var canvas = document.getElementById("renderCanvas");
+      gl = canvas.getContext("webgl2");
+
+      var triangleVertices = [
+        0.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        1.0, 1.0, 0.0,
+        0.0, 1.0, 0.0
+      ];
+
+
+      var positions = new Array(50);
+
+      for (var i = 0; i < positions.length; i++) {
+        positions[i] = new Array(2);
+      }
+      positions[0] = [0, 0];
+      positions[1] = [-1, 0];
+      positions[2] = [-2, 0];
+      positions[3] = [-3, 0];
+
+
+      var length = 4;
+      var triangleVertexPositionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
+
+      var vertexShader = getAndCompileShader("vertexShader");
+      var fragmentshader = getAndCompileShader("fragmentShader");
+      var shaderProgram = gl.createProgram();
+
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentshader);
+      gl.linkProgram(shaderProgram);
+
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert("Could not link shaders");
+      }
+
+
+
+
+      gl.useProgram(shaderProgram);
+
+      var vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      var positionAttributeLocation = gl.getAttribLocation(shaderProgram, "position");
+      gl.enableVertexAttribArray(positionAttributeLocation);
+      gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+      //void gl.vertexAttribPointer(index, size, type, normalized, stride, offset);
+      gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+
+      var colorUniformLocation = gl.getUniformLocation(shaderProgram, "color");
+      gl.uniform4fv(colorUniformLocation, [0.0, 1.0, 0.0, 1.0]);
+
+      var rltbUniformLocation = gl.getUniformLocation(shaderProgram, "rltb");
+      gl.uniform4fv(rltbUniformLocation, [50.0, -50.0, 25.0, -25.0]);
+
+      var translationVectorLoc = gl.getUniformLocation(shaderProgram, "translationVector");
+      gl.uniform3fv(translationVectorLoc, positions[0].concat([0]));
+
+      requestAnimationFrame(runRenderLoop);
+
+
+      function runRenderLoop() {
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(shaderProgram);
+        gl.bindVertexArray(vao);
+
+
+        for (var i = length - 1; i >= 0; i--) {
+          positions[i + 1] = positions[i];
+        }
+        positions[0] = positions[0].map(function(num, idx) {
+          return num + direction[idx];
+        });
+
+
+        for (var i = 0; i < length; i++) {
+          console.log(positions[i].concat([0]));
+          gl.uniform3fv(translationVectorLoc, positions[i].concat([0]));
+
+          if (i == 0) {
+            gl.uniform4fv(colorUniformLocation, [0.0, 1.0, 0.0, 1.0]);
+          } else {
+            gl.uniform4fv(colorUniformLocation, [1.0, 1.0, 1.0, 1.0]);
+          }
+
+          gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        }
+
+
+        setTimeout(function() {
+          runRenderLoop()
+        }, 300);
+      }
+
+
+    }
+
+    function getAndCompileShader(id) {
+      var shader;
+      var shaderElement = document.getElementById(id);
+      var shaderText = shaderElement.text.trim();
+      if (id == "vertexShader")
+        shader = gl.createShader(gl.VERTEX_SHADER);
+      else if (id == "fragmentShader")
+        shader = gl.createShader(gl.FRAGMENT_SHADER);
+
+      gl.shaderSource(shader, shaderText);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        alert(gl.getShaderInfoLog(shader));
+        return null;
+      }
+      return shader;
+    }
+
+    document.addEventListener("keydown", function(event) {
+      console.log(event);
+      if (event.key == 'w' || event.key == 'ArrowUp') {
+        if (direction != [0, -1]) {
+          direction = [0, 1];
+        }
+      } else if (event.key == 's' || event.key == 'ArrowDown') {
+        if (direction != [0, 1]) {
+          direction = [0, -1];
+        }
+      } else if (event.key == 'a' || event.key == 'ArrowLeft') {
+        if (direction != [1, 0]) {
+          direction = [-1, 0];
+        }
+      } else if (event.key == 'd' || event.key == 'ArrowRight') {
+        if (direction != [-1, 0]) {
+          direction = [1, 0];
+        }
+      }
+
+
+    });
+  </script>
+  <script id="vertexShader" type="vertexShader">
+    #version 300 es
+        in vec3 position;
+        uniform vec4 color;
+        uniform vec4 rltb;
+        uniform vec3 translationVector;
+        out vec4 fcolor;
+
+        void main()
+        {
+          mat4 tr = mat4(1.0, 0.0, 0.0, 0.0,
+                          0.0, 1.0, 0.0, 0.0,
+                          0.0, 0.0, 1.0, 0.0,
+                          translationVector.x,translationVector.y,translationVector.z,1.0);
+
+            float r=rltb.x, l=rltb.y, t=rltb.z, b=rltb.w, n=-1.0, f=1.0;
+            mat4 P=mat4(2.0/(r-l) , 0.0, 0.0, -1.0*(l+r)/(r-l),
+                        0.0, 2.0/(t-b), 0.0, -1.0*(t+b)/(t-b),
+                        0.0, 0.0, -2.0/(f-n), -1.0*(f+n)/(f-n),
+                        0.0, 0.0, 0.0, 1.0);
+            gl_Position = P*tr*vec4(position, 1) ;
+            fcolor = color;
+        }
+    </script>
+
+  <script id="fragmentShader" type="fragmentShader">
+    #version 300 es
+        precision mediump float;
+        in vec4 fcolor;
+        out vec4 finalColor;
+        void main()
+        {
+            finalColor = fcolor;
+        }
+    </script>
+</body>
+
+</html>
